@@ -9,8 +9,9 @@ WORKER = os.getenv("WORKER")
 ADMIN = os.getenv("ADMIN")
 
 
-# Role allowed to use /getkey
-ALLOWED_ROLE_ID = 1527529264738603151
+# Roles
+KEY_ROLE_ID = 1527529264738603151
+OWNER_ROLE_ID = 1527529191698858125
 
 
 intents = discord.Intents.default()
@@ -23,36 +24,55 @@ bot = commands.Bot(
 )
 
 
+# =========================
+# READY
+# =========================
+
 @bot.event
 async def on_ready():
+
     await bot.tree.sync()
+
+    print("----------------------")
     print(f"Logged in as {bot.user}")
-    print("Slash commands synced")
+    print("Commands synced")
+    print("----------------------")
 
 
-# ==========================
-# GET KEY COMMAND
-# ==========================
+
+# =========================
+# GET CURRENT KEY
+# =========================
 
 @bot.tree.command(
     name="getkey",
-    description="Get the active Axiom key"
+    description="Get the current Axiom key"
 )
 async def getkey(interaction: discord.Interaction):
 
-    has_role = False
 
-    for role in interaction.user.roles:
-        if role.id == ALLOWED_ROLE_ID:
-            has_role = True
+    # Check role
+    has_role = any(
+        role.id == KEY_ROLE_ID
+        for role in interaction.user.roles
+    )
 
 
     if not has_role:
+
         await interaction.response.send_message(
             "❌ You do not have permission to use this command.",
             ephemeral=True
         )
+
         return
+
+
+
+    # Acknowledge interaction
+    await interaction.response.defer(
+        ephemeral=True
+    )
 
 
     try:
@@ -60,7 +80,7 @@ async def getkey(interaction: discord.Interaction):
         response = requests.post(
             WORKER,
             json={
-                "action": "get"
+                "action":"get"
             },
             timeout=10
         )
@@ -69,98 +89,167 @@ async def getkey(interaction: discord.Interaction):
         data = response.json()
 
 
+
         if data.get("success"):
 
-            await interaction.response.send_message(
-                f"🔑 Your Axiom Key:\n\n```{data['key']}```\n\nExpires every 3 hours.",
+
+            await interaction.followup.send(
+                f"🔑 **Axiom Key**\n\n```{data['key']}```\n\n⏳ Expires every 3 hours.",
                 ephemeral=True
             )
+
 
         else:
 
-            await interaction.response.send_message(
-                "❌ No active key currently.",
+
+            await interaction.followup.send(
+                "❌ No active key.",
                 ephemeral=True
             )
+
 
 
     except Exception as e:
 
-        await interaction.response.send_message(
-            f"❌ API Error:\n{e}",
+
+        await interaction.followup.send(
+            f"❌ Error contacting API:\n```{e}```",
             ephemeral=True
         )
 
 
 
-# ==========================
+
+
+# =========================
 # CREATE NEW KEY
-# ==========================
+# =========================
 
 @bot.tree.command(
     name="newkey",
-    description="Generate a new Axiom key"
+    description="Create a new Axiom key"
 )
 async def newkey(interaction: discord.Interaction):
 
 
-    if not interaction.user.guild_permissions.administrator:
+    # Owner role check
+    has_owner_role = any(
+        role.id == OWNER_ROLE_ID
+        for role in interaction.user.roles
+    )
+
+
+    if not has_owner_role:
+
 
         await interaction.response.send_message(
-            "❌ Admin only.",
+            "❌ Only the owner can create new keys.",
             ephemeral=True
         )
+
 
         return
 
 
 
+    await interaction.response.defer(
+        ephemeral=True
+    )
+
+
+
     try:
 
+
         response = requests.post(
+
             WORKER,
+
             json={
+
                 "action":"create",
+
                 "admin":ADMIN
+
             },
+
             timeout=10
+
         )
 
 
-        data=response.json()
+
+        data = response.json()
+
 
 
         if data.get("success"):
 
-            await interaction.response.send_message(
-                f"✅ New Key Created:\n```{data['key']}```",
+
+            await interaction.followup.send(
+
+                f"✅ **New Axiom Key Created**\n\n```{data['key']}```\n\nExpires in 3 hours.",
+
                 ephemeral=True
+
             )
+
+
 
         else:
 
-            await interaction.response.send_message(
+
+            await interaction.followup.send(
+
                 "❌ Failed creating key.",
+
                 ephemeral=True
+
             )
+
 
 
     except Exception as e:
 
-        await interaction.response.send_message(
-            f"❌ Error:\n{e}",
+
+        await interaction.followup.send(
+
+            f"❌ Error:\n```{e}```",
+
             ephemeral=True
+
         )
 
 
 
-# ==========================
-# START BOT
-# ==========================
+
+
+# =========================
+# START
+# =========================
 
 if not TOKEN:
+
     print("Missing TOKEN environment variable")
+
     exit()
+
+
+
+if not WORKER:
+
+    print("Missing WORKER environment variable")
+
+    exit()
+
+
+
+if not ADMIN:
+
+    print("Missing ADMIN environment variable")
+
+    exit()
+
 
 
 bot.run(TOKEN)
