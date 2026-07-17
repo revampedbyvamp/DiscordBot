@@ -4,30 +4,23 @@ import requests
 import os
 from dotenv import load_dotenv
 
-
 load_dotenv()
 
+TOKEN = os.getenv("TOKEN")
+WORKER = os.getenv("WORKER")
+ADMIN = os.getenv("ADMIN")
 
-TOKEN=os.getenv("TOKEN")
-
-WORKER=os.getenv("WORKER")
-
-ADMIN=os.getenv("ADMIN")
-
+ROLE_ID = 123456789012345678
 
 
-ROLE_ID=123456789012345678
+intents = discord.Intents.default()
+intents.members = True
 
 
-
-intents=discord.Intents.all()
-
-
-bot=commands.Bot(
-command_prefix="!",
-intents=intents
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents
 )
-
 
 
 @bot.event
