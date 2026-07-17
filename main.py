@@ -2,15 +2,15 @@ import discord
 from discord.ext import commands
 import requests
 import os
-from dotenv import load_dotenv
 
-load_dotenv()
 
 TOKEN = os.getenv("TOKEN")
 WORKER = os.getenv("WORKER")
 ADMIN = os.getenv("ADMIN")
 
-ROLE_ID = 123456789012345678
+
+# Role allowed to use /getkey
+ALLOWED_ROLE_ID = 1527529264738603151
 
 
 intents = discord.Intents.default()
@@ -25,118 +25,142 @@ bot = commands.Bot(
 
 @bot.event
 async def on_ready():
-
     await bot.tree.sync()
-
-    print(
-    "Bot online"
-    )
+    print(f"Logged in as {bot.user}")
+    print("Slash commands synced")
 
 
+# ==========================
+# GET KEY COMMAND
+# ==========================
 
 @bot.tree.command(
-name="getkey",
-description="Get Axiom key"
+    name="getkey",
+    description="Get the active Axiom key"
 )
-async def getkey(
-interaction:discord.Interaction
-):
+async def getkey(interaction: discord.Interaction):
 
-
-    allowed=False
-
+    has_role = False
 
     for role in interaction.user.roles:
-
-        if role.id == ROLE_ID:
-
-            allowed=True
+        if role.id == ALLOWED_ROLE_ID:
+            has_role = True
 
 
+    if not has_role:
+        await interaction.response.send_message(
+            "❌ You do not have permission to use this command.",
+            ephemeral=True
+        )
+        return
 
-    if not allowed:
+
+    try:
+
+        response = requests.post(
+            WORKER,
+            json={
+                "action": "get"
+            },
+            timeout=10
+        )
+
+
+        data = response.json()
+
+
+        if data.get("success"):
+
+            await interaction.response.send_message(
+                f"🔑 Your Axiom Key:\n\n```{data['key']}```\n\nExpires every 3 hours.",
+                ephemeral=True
+            )
+
+        else:
+
+            await interaction.response.send_message(
+                "❌ No active key currently.",
+                ephemeral=True
+            )
+
+
+    except Exception as e:
 
         await interaction.response.send_message(
-        "No access",
-        ephemeral=True
+            f"❌ API Error:\n{e}",
+            ephemeral=True
+        )
+
+
+
+# ==========================
+# CREATE NEW KEY
+# ==========================
+
+@bot.tree.command(
+    name="newkey",
+    description="Generate a new Axiom key"
+)
+async def newkey(interaction: discord.Interaction):
+
+
+    if not interaction.user.guild_permissions.administrator:
+
+        await interaction.response.send_message(
+            "❌ Admin only.",
+            ephemeral=True
         )
 
         return
 
 
 
-    r=requests.post(
+    try:
 
-    WORKER,
-
-    json={
-    "action":"get"
-    }
-
-    )
-
-
-    data=r.json()
-
-
-
-    if data["success"]:
-
-
-        await interaction.response.send_message(
-
-        f"Your key:\n```{data['key']}```",
-
-        ephemeral=True
-
+        response = requests.post(
+            WORKER,
+            json={
+                "action":"create",
+                "admin":ADMIN
+            },
+            timeout=10
         )
 
 
-    else:
+        data=response.json()
+
+
+        if data.get("success"):
+
+            await interaction.response.send_message(
+                f"✅ New Key Created:\n```{data['key']}```",
+                ephemeral=True
+            )
+
+        else:
+
+            await interaction.response.send_message(
+                "❌ Failed creating key.",
+                ephemeral=True
+            )
+
+
+    except Exception as e:
 
         await interaction.response.send_message(
-
-        "No active key",
-
-        ephemeral=True
-
+            f"❌ Error:\n{e}",
+            ephemeral=True
         )
 
 
 
+# ==========================
+# START BOT
+# ==========================
 
-
-@bot.tree.command(
-name="newkey"
-)
-async def newkey(
-interaction:discord.Interaction
-):
-
-
-    r=requests.post(
-
-    WORKER,
-
-    json={
-
-    "action":"create",
-
-    "admin":ADMIN
-
-    }
-
-    )
-
-
-    await interaction.response.send_message(
-
-    r.text,
-
-    ephemeral=True
-
-    )
-
+if not TOKEN:
+    print("Missing TOKEN environment variable")
+    exit()
 
 
 bot.run(TOKEN)
